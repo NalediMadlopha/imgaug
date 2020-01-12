@@ -74,6 +74,42 @@ class _InplaceDummyAugmenterImgsList(iaa.meta.Augmenter):
         return []
 
 
+class _InplaceDummyAugmenterSegMaps(iaa.meta.Augmenter):
+    def __init__(self, addval):
+        super(_InplaceDummyAugmenterSegMaps, self).__init__(
+            name=None, deterministic=False, random_state=None)
+        self.addval = addval
+
+    def _augment_batch(self, batch, random_state, parents, hooks):
+        assert len(batch.segmentation_maps) > 0
+        for i in range(len(batch.segmentation_maps)):
+            batch.segmentation_maps[i].arr += self.addval
+        return batch
+
+    def get_parameters(self):
+        return []
+
+
+class _InplaceDummyAugmenterKeypoints(iaa.meta.Augmenter):
+    def __init__(self, x, y):
+        super(_InplaceDummyAugmenterKeypoints, self).__init__(
+            name=None, deterministic=False, random_state=None)
+        self.x = x
+        self.y = y
+
+    def _augment_batch(self, batch, random_state, parents, hooks):
+        assert len(batch.keypoints) > 0
+        for i in range(len(batch.keypoints)):
+            kpsoi = batch.keypoints[i]
+            for j in range(len(kpsoi)):
+                batch.keypoints[i].keypoints[j].x += self.x
+                batch.keypoints[i].keypoints[j].y += self.y
+        return batch
+
+    def get_parameters(self):
+        return []
+
+
 class TestIdentity(unittest.TestCase):
     def setUp(self):
         reseed()
@@ -2948,6 +2984,131 @@ class TestAugmenter_augment_batch(unittest.TestCase):
             assert np.array_equal(image, image_cp)
             assert np.array_equal(image_unaug, image_cp)
             assert np.array_equal(image_aug, image_cp + 1)
+
+
+
+class TestAugmenter_augment_batch_(unittest.TestCase):
+    def setUp(self):
+        reseed()
+
+    def test_verify_inplace_aug__imgs__unnormalized_batch(self):
+        image = np.arange(10*20).astype(np.uint8).reshape((10, 20, 1))
+        image = np.tile(image, (1, 1, 3))
+        image[:, :, 0] += 0
+        image[:, :, 1] += 1
+        image[:, :, 2] += 2
+        images = image[np.newaxis, :, :, :]
+        image_cp = np.copy(image)
+
+        aug = _InplaceDummyAugmenterImgsArray(1)
+
+        batch = ia.UnnormalizedBatch(images=images)
+        batch_aug = aug.augment_batch_(batch)
+        image_unaug = batch_aug.images_unaug[0, :, :, :]
+        image_aug = batch_aug.images_aug[0, :, :, :]
+
+        assert batch_aug is batch
+        assert batch_aug.images_aug is not batch.images_unaug
+        assert batch_aug.images_aug is not batch_aug.images_unaug
+
+        assert np.array_equal(image, image_cp)
+        assert np.array_equal(image_unaug, image_cp)
+        assert np.array_equal(image_aug, image_cp + 1)
+
+    def test_verify_inplace_aug__imgs__normalized_batch(self):
+        image = np.arange(10*20).astype(np.uint8).reshape((10, 20, 1))
+        image = np.tile(image, (1, 1, 3))
+        image[:, :, 0] += 0
+        image[:, :, 1] += 1
+        image[:, :, 2] += 2
+        images = image[np.newaxis, :, :, :]
+        image_cp = np.copy(image)
+
+        aug = _InplaceDummyAugmenterImgsArray(1)
+
+        batch = ia.Batch(images=images)
+        batch_aug = aug.augment_batch_(batch)
+        image_unaug = batch_aug.images_unaug[0, :, :, :]
+        image_aug = batch_aug.images_aug[0, :, :, :]
+
+        assert batch_aug is batch
+        assert batch_aug.images_aug is not batch.images_unaug
+        assert batch_aug.images_aug is not batch_aug.images_unaug
+
+        assert np.array_equal(image, image_cp)
+        assert np.array_equal(image_unaug, image_cp)
+        assert np.array_equal(image_aug, image_cp + 1)
+
+    def test_verify_inplace_aug__imgs__batchinaug(self):
+        image = np.arange(10*20).astype(np.uint8).reshape((10, 20, 1))
+        image = np.tile(image, (1, 1, 3))
+        image[:, :, 0] += 0
+        image[:, :, 1] += 1
+        image[:, :, 2] += 2
+        images = image[np.newaxis, :, :, :]
+        image_cp = np.copy(image)
+
+        aug = _InplaceDummyAugmenterImgsArray(1)
+
+        batch = ia.BatchInAugmentation(images=images)
+        batch_aug = aug.augment_batch_(batch)
+        image_aug = batch_aug.images[0, :, :, :]
+
+        assert batch_aug is batch
+        assert batch_aug.images is batch.images
+
+        assert not np.array_equal(image, image_cp)
+        assert np.array_equal(image_aug, image_cp + 1)
+
+    def test_verify_inplace_aug__segmaps__normalized_batch(self):
+        segmap_arr = np.zeros((10, 20, 3), dtype=np.int32)
+        segmap_arr[3:6, 3:9] = 1
+        segmap = ia.SegmentationMapsOnImage(segmap_arr, shape=(10, 20, 3))
+        segmap_cp = ia.SegmentationMapsOnImage(np.copy(segmap_arr),
+                                               shape=(10, 20, 3))
+
+        aug = _InplaceDummyAugmenterSegMaps(1)
+
+        batch = ia.Batch(segmentation_maps=[segmap])
+        batch_aug = aug.augment_batch_(batch)
+        segmap_unaug = batch_aug.segmentation_maps_unaug[0]
+        segmap_aug = batch_aug.segmentation_maps_aug[0]
+
+        assert batch_aug is batch
+        assert (batch_aug.segmentation_maps_aug
+                is not batch.segmentation_maps_unaug)
+        assert (batch_aug.segmentation_maps_aug
+                is not batch_aug.segmentation_maps_unaug)
+
+        assert np.array_equal(segmap.get_arr(), segmap_cp.get_arr())
+        assert np.array_equal(segmap_unaug.get_arr(), segmap_cp.get_arr())
+        assert np.array_equal(segmap_aug.get_arr(), segmap_cp.get_arr() + 1)
+
+    def test_verify_inplace_aug__keypoints_normalized_batch(self):
+        kpsoi = ia.KeypointsOnImage([ia.Keypoint(x=1, y=2)],
+                                    shape=(10, 20, 3))
+        kpsoi_cp = ia.KeypointsOnImage([ia.Keypoint(x=1, y=2)],
+                                       shape=(10, 20, 3))
+
+        aug = _InplaceDummyAugmenterKeypoints(x=1, y=3)
+
+        batch = ia.Batch(keypoints=[kpsoi])
+        batch_aug = aug.augment_batch_(batch)
+        kpsoi_unaug = batch_aug.keypoints_unaug[0]
+        kpsoi_aug = batch_aug.keypoints_aug[0]
+
+        assert batch_aug is batch
+        assert (batch_aug.keypoints_aug
+                is not batch.keypoints_unaug)
+        assert (batch_aug.keypoints_aug
+                is not batch_aug.keypoints_unaug)
+
+        assert np.allclose(kpsoi.to_xy_array(), kpsoi_cp.to_xy_array())
+        assert np.allclose(kpsoi_unaug.to_xy_array(), kpsoi_cp.to_xy_array())
+        assert np.allclose(kpsoi_aug.to_xy_array()[:, 0],
+                           kpsoi_cp.to_xy_array()[:, 0] + 1)
+        assert np.allclose(kpsoi_aug.to_xy_array()[:, 1],
+                           kpsoi_cp.to_xy_array()[:, 1] + 3)
 
 
 class TestAugmenter_augment_segmentation_maps(unittest.TestCase):
