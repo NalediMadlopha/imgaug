@@ -511,6 +511,24 @@ class Augmenter(object):
                     del id_to_batch_orig[idx]
                     yield batch_unnormalized
 
+    # we deprecate here so that users switch to `augment_batch_()` and in the
+    # future we can add a `parents` parameter here without having to consider
+    # that a breaking change
+    @ia.deprecated("augment_batch_()",
+                   comment="`augment_batch()` was renamed to "
+                           "`augment_batch_()` as it changes all `*_unaug` "
+                           "attributes of batches in-place. Note that "
+                           "`augment_batch_()` has now a `parents` parameter. "
+                           "Calls of the style `augment_batch(batch, hooks)` "
+                           "must be changed to "
+                           "`augment_batch(batch, hooks=hooks)`.")
+    def augment_batch(self, batch, hooks=None):
+        """Augment a single batch."""
+        # We call augment_batch_() directly here without copy, because this
+        # method never copies. Would make sense to add a copy here if the
+        # method is un-deprecated at some point.
+        return self.augment_batch_(batch, hooks=hooks)
+
     # TODO add more tests
     def augment_batch_(self, batch, parents=None, hooks=None):
         """

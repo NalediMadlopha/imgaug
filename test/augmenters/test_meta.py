@@ -39,6 +39,20 @@ from imgaug.augmentables.polys import _ConcavePolygonRecoverer
 IS_PY36_OR_HIGHER = (sys.version_info[0] == 3 and sys.version_info[1] >= 6)
 
 
+class _InplaceDummyAugmenterImgsArray(iaa.meta.Augmenter):
+    def __init__(self, addval):
+        super(_InplaceDummyAugmenterImgsArray, self).__init__(
+            name=None, deterministic=False, random_state=None)
+        self.addval = addval
+
+    def _augment_batch(self, batch, random_state, parents, hooks):
+        batch.images += self.addval
+        return batch
+
+    def get_parameters(self):
+        return []
+
+
 class TestIdentity(unittest.TestCase):
     def setUp(self):
         reseed()
@@ -2870,6 +2884,49 @@ class TestAugmenter_augment_batches(unittest.TestCase):
                 assert nb_changed > 0
             else:
                 assert nb_changed == 0
+
+
+class TestAugmenter_augment_batch(unittest.TestCase):
+    def test_deprecation(self):
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+
+            aug = _InplaceDummyAugmenterImgsArray(1)
+
+            batch = ia.UnnormalizedBatch(
+                images=np.zeros((1, 1, 1, 3), dtype=np.uint8))
+            _batch_aug = aug.augment_batch(batch)
+
+            assert len(caught_warnings) == 1
+            assert "is deprecated" in str(caught_warnings[0].message)
+
+    def test_augments_correctly_images(self):
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+
+            image = np.arange(10*20).astype(np.uint8).reshape((10, 20, 1))
+            image = np.tile(image, (1, 1, 3))
+            image[:, :, 0] += 0
+            image[:, :, 1] += 1
+            image[:, :, 2] += 2
+            images = image[np.newaxis, :, :, :]
+            image_cp = np.copy(image)
+
+            aug = _InplaceDummyAugmenterImgsArray(1)
+
+            batch = ia.UnnormalizedBatch(images=images)
+            batch_aug = aug.augment_batch(batch)
+
+            image_unaug = batch_aug.images_unaug[0, :, :, :]
+            image_aug = batch_aug.images_aug[0, :, :, :]
+
+            assert batch_aug is batch
+            assert batch_aug.images_aug is not batch.images_unaug
+            assert batch_aug.images_aug is not batch_aug.images_unaug
+
+            assert np.array_equal(image, image_cp)
+            assert np.array_equal(image_unaug, image_cp)
+            assert np.array_equal(image_aug, image_cp + 1)
 
 
 class TestAugmenter_augment_segmentation_maps(unittest.TestCase):
