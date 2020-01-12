@@ -1,5 +1,6 @@
 from __future__ import print_function, division, absolute_import
 
+import os
 import warnings
 import sys
 import itertools
@@ -20,6 +21,9 @@ matplotlib.use('Agg')  # fix execution of tests involving matplotlib on travis
 import numpy as np
 import six
 import six.moves as sm
+import cv2
+import PIL.Image
+import imageio
 
 import imgaug as ia
 from imgaug import augmenters as iaa
@@ -29,7 +33,8 @@ from imgaug import random as iarandom
 from imgaug.testutils import (create_random_images, create_random_keypoints,
                               array_equal_lists, keypoints_equal, reseed,
                               assert_cbaois_equal, shift_cbaoi,
-                              runtest_pickleable_uint8_img)
+                              runtest_pickleable_uint8_img,
+                              TemporaryDirectory)
 from imgaug.augmentables.heatmaps import HeatmapsOnImage
 from imgaug.augmentables.segmaps import SegmentationMapsOnImage
 from imgaug.augmentables.lines import LineString, LineStringsOnImage
@@ -47,6 +52,22 @@ class _InplaceDummyAugmenterImgsArray(iaa.meta.Augmenter):
 
     def _augment_batch(self, batch, random_state, parents, hooks):
         batch.images += self.addval
+        return batch
+
+    def get_parameters(self):
+        return []
+
+
+class _InplaceDummyAugmenterImgsList(iaa.meta.Augmenter):
+    def __init__(self, addval):
+        super(_InplaceDummyAugmenterImgsList, self).__init__(
+            name=None, deterministic=False, random_state=None)
+        self.addval = addval
+
+    def _augment_batch(self, batch, random_state, parents, hooks):
+        assert len(batch.images) > 0
+        for i in range(len(batch.images)):
+            batch.images[i] += self.addval
         return batch
 
     def get_parameters(self):
@@ -4980,6 +5001,132 @@ class TestAugmenterHooks(unittest.TestCase):
         keypoints_aug = aug.augment_keypoints(kpsoi, hooks=hooks)
 
         assert keypoints_equal([keypoints_aug], [kpsoi])
+
+
+class TestAugmenterWithLoadedImages(unittest.TestCase):
+    def setUp(self):
+        reseed()
+
+    def test_with_cv2(self):
+        image = np.arange(10*20).astype(np.uint8).reshape((10, 20, 1))
+        image = np.tile(image, (1, 1, 3))
+        image[:, :, 0] += 0
+        image[:, :, 1] += 1
+        image[:, :, 2] += 2
+        images = image[np.newaxis, :, :, :]
+        image_cp = np.copy(image)
+        images_cp = np.copy(images)
+
+        aug_arrs = _InplaceDummyAugmenterImgsArray(1)
+        aug_lists = _InplaceDummyAugmenterImgsList(1)
+
+        with TemporaryDirectory() as dirpath:
+            imgpath = os.path.join(dirpath, "temp_cv2.png")
+            imageio.imwrite(imgpath, image)
+            image_reloaded = cv2.imread(imgpath)[:, :, ::-1]
+            images_reloaded = image_reloaded[np.newaxis, :, :, :]
+
+            image_aug = aug_lists(image=image_reloaded)
+            assert image_aug is not image_reloaded
+            assert np.array_equal(image_reloaded, image_cp)
+            assert np.array_equal(image_aug, image_cp + 1)
+
+            image_aug = aug_lists.augment_image(image=image_reloaded)
+            assert image_aug is not image_reloaded
+            assert np.array_equal(image_reloaded, image_cp)
+            assert np.array_equal(image_aug, image_cp + 1)
+
+            images_aug = aug_arrs(images=images_reloaded)
+            assert images_aug is not images_reloaded
+            assert np.array_equal(images_reloaded, images_cp)
+            assert np.array_equal(images_aug, images_cp + 1)
+
+            images_aug = aug_arrs.augment_images(images=images_reloaded)
+            assert images_aug is not images_reloaded
+            assert np.array_equal(images_reloaded, images_cp)
+            assert np.array_equal(images_aug, images_cp + 1)
+
+    def test_with_imageio(self):
+        image = np.arange(10*20).astype(np.uint8).reshape((10, 20, 1))
+        image = np.tile(image, (1, 1, 3))
+        image[:, :, 0] += 0
+        image[:, :, 1] += 1
+        image[:, :, 2] += 2
+        images = image[np.newaxis, :, :, :]
+        image_cp = np.copy(image)
+        images_cp = np.copy(images)
+
+        aug_arrs = _InplaceDummyAugmenterImgsArray(1)
+        aug_lists = _InplaceDummyAugmenterImgsList(1)
+
+        with TemporaryDirectory() as dirpath:
+            imgpath = os.path.join(dirpath, "temp_imageio.png")
+            imageio.imwrite(imgpath, image)
+            image_reloaded = imageio.imread(imgpath)
+            images_reloaded = image_reloaded[np.newaxis, :, :, :]
+
+            image_aug = aug_lists(image=image_reloaded)
+            assert image_aug is not image_reloaded
+            assert np.array_equal(image_reloaded, image_cp)
+            assert np.array_equal(image_aug, image_cp + 1)
+
+            image_aug = aug_lists.augment_image(image=image_reloaded)
+            assert image_aug is not image_reloaded
+            assert np.array_equal(image_reloaded, image_cp)
+            assert np.array_equal(image_aug, image_cp + 1)
+
+            images_aug = aug_arrs(images=images_reloaded)
+            assert images_aug is not images_reloaded
+            assert np.array_equal(images_reloaded, images_cp)
+            assert np.array_equal(images_aug, images_cp + 1)
+
+            images_aug = aug_arrs.augment_images(images=images_reloaded)
+            assert images_aug is not images_reloaded
+            assert np.array_equal(images_reloaded, images_cp)
+            assert np.array_equal(images_aug, images_cp + 1)
+
+    def test_with_pil(self):
+        fnames = ["asarray", "array"]
+        for fname in fnames:
+            with self.subTest(fname=fname):
+                image = np.arange(10*20).astype(np.uint8).reshape((10, 20, 1))
+                image = np.tile(image, (1, 1, 3))
+                image[:, :, 0] += 0
+                image[:, :, 1] += 1
+                image[:, :, 2] += 2
+                images = image[np.newaxis, :, :, :]
+                image_cp = np.copy(image)
+                images_cp = np.copy(images)
+
+                aug_arrs = _InplaceDummyAugmenterImgsArray(1)
+                aug_lists = _InplaceDummyAugmenterImgsList(1)
+
+                with TemporaryDirectory() as dirpath:
+                    imgpath = os.path.join(dirpath,
+                                           "temp_pil_%s.png" % (fname,))
+                    imageio.imwrite(imgpath, image)
+                    image_reloaded = getattr(np, fname)(PIL.Image.open(imgpath))
+                    images_reloaded = image_reloaded[np.newaxis, :, :, :]
+
+                    image_aug = aug_lists(image=image_reloaded)
+                    assert image_aug is not image_reloaded
+                    assert np.array_equal(image_reloaded, image_cp)
+                    assert np.array_equal(image_aug, image_cp + 1)
+
+                    image_aug = aug_lists.augment_image(image=image_reloaded)
+                    assert image_aug is not image_reloaded
+                    assert np.array_equal(image_reloaded, image_cp)
+                    assert np.array_equal(image_aug, image_cp + 1)
+
+                    images_aug = aug_arrs(images=images_reloaded)
+                    assert images_aug is not images_reloaded
+                    assert np.array_equal(images_reloaded, images_cp)
+                    assert np.array_equal(images_aug, images_cp + 1)
+
+                    images_aug = aug_arrs.augment_images(images=images_reloaded)
+                    assert images_aug is not images_reloaded
+                    assert np.array_equal(images_reloaded, images_cp)
+                    assert np.array_equal(images_aug, images_cp + 1)
 
 
 class TestSequential(unittest.TestCase):
