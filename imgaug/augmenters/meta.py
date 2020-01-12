@@ -611,10 +611,9 @@ class Augmenter(object):
                 setattr(batch_inaug, column.attr_name, augm_value)
 
         if batch_unnorm is not None:
-            # TODO make fill_from_augmented_normalized_batch inplace
             batch_norm = batch_norm.fill_from_batch_in_augmentation_(
                 batch_inaug)
-            batch_unnorm = batch_unnorm.fill_from_augmented_normalized_batch(
+            batch_unnorm = batch_unnorm.fill_from_augmented_normalized_batch_(
                 batch_norm)
             return batch_unnorm
         if batch_norm is not None:
