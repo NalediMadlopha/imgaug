@@ -406,7 +406,7 @@ class BlendAlpha(meta.Augmenter):
 
         self.epsilon = 1e-2
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         batch_fg, batch_bg = _generate_branch_outputs(
             self, batch, hooks, parents)
 
@@ -602,7 +602,7 @@ class BlendAlphaMask(meta.Augmenter):
 
         self.epsilon = 1e-2
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         batch_fg, batch_bg = _generate_branch_outputs(
             self, batch, hooks, parents)
 

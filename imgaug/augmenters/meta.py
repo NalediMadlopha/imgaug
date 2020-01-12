@@ -609,14 +609,14 @@ class Augmenter(object):
                     set_to_none.append(column)
                     setattr(batch_inaug, column.attr_name, None)
 
-        # If _augment_batch() follows legacy-style and ends up calling
+        # If _augment_batch_() follows legacy-style and ends up calling
         # _augment_images() and similar methods, we don't need the
         # deterministic context here. But if there is a custom implementation
-        # of _augment_batch(), then we should have this here. It causes very
+        # of _augment_batch_(), then we should have this here. It causes very
         # little overhead.
         with _maybe_deterministic_ctx(self):
             if not batch_inaug.empty:
-                batch_inaug = self._augment_batch(
+                batch_inaug = self._augment_batch_(
                     batch_inaug,
                     random_state=self.random_state,
                     parents=parents if parents is not None else [],
@@ -628,7 +628,7 @@ class Augmenter(object):
 
         # hooks postprocess
         if hooks is not None:
-            # refresh as contents may have been changed in _augment_batch()
+            # refresh as contents may have been changed in _augment_batch_()
             columns = batch_inaug.columns
 
             for column in columns:
@@ -648,11 +648,11 @@ class Augmenter(object):
             return batch_norm
         return batch_inaug
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
-        """Augment a batch in-place.
+    def _augment_batch_(self, batch, random_state, parents, hooks):
+        """Augment a single batch in-place.
 
-        This is the internal version of :func:`Augmenter.augment_batch`.
-        It is called from :func:`Augmenter.augment_batch` and should usually
+        This is the internal version of :func:`Augmenter.augment_batch_`.
+        It is called from :func:`Augmenter.augment_batch_` and should usually
         not be called directly.
         This method may transform the batches in-place.
         This method does not have to care about determinism or the
@@ -669,10 +669,10 @@ class Augmenter(object):
             augmentation.
 
         parents : list of imgaug.augmenters.meta.Augmenter
-            See :func:`~imgaug.augmenters.meta.Augmenter.augment_batch`.
+            See :func:`~imgaug.augmenters.meta.Augmenter.augment_batch_`.
 
         hooks : imgaug.imgaug.HooksImages or None
-            See :func:`~imgaug.augmenters.meta.Augmenter.augment_batch`.
+            See :func:`~imgaug.augmenters.meta.Augmenter.augment_batch_`.
 
         Returns
         ----------
@@ -680,6 +680,12 @@ class Augmenter(object):
             The augmented batch.
 
         """
+        # The code below covers the case of older augmenters that still have
+        # _augment_images(), _augment_keypoints(), ... methods that augment
+        # each input type on its own (including re-sampling from random
+        # variables). The code block can be safely overwritten by a method
+        # augmenting a whole batch of data in one step.
+
         columns = batch.columns
         multiple_columns = len(columns) > 1
 
@@ -3053,7 +3059,7 @@ class Sequential(Augmenter, list):
                 type(random_order),))
         self.random_order = random_order
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         with batch.propagation_hooks_ctx(self, hooks, parents):
             if self.random_order:
                 order = random_state.permutation(len(self))
@@ -3302,7 +3308,7 @@ class SomeOf(Augmenter, list):
             random_state.shuffle(row)
         return augmenter_active
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         with batch.propagation_hooks_ctx(self, hooks, parents):
             # This must happen before creating the augmenter_active array,
             # otherwise in case of determinism the number of augmented images
@@ -3517,7 +3523,7 @@ class Sometimes(Augmenter):
         self.else_list = handle_children_list(else_list, self.name, "else",
                                               default=None)
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         with batch.propagation_hooks_ctx(self, hooks, parents):
             samples = self.p.draw_samples((batch.nb_rows,),
                                           random_state=random_state)
@@ -3664,7 +3670,7 @@ class WithChannels(Augmenter):
 
         self.children = handle_children_list(children, self.name, "then")
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         if self.channels is not None and len(self.channels) == 0:
             return batch
 
@@ -3851,7 +3857,7 @@ class Identity(Augmenter):
         super(Identity, self).__init__(name=name, deterministic=deterministic,
                                        random_state=random_state)
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         return batch
 
     def get_parameters(self):
@@ -4693,7 +4699,7 @@ class ChannelShuffle(Augmenter):
                 type(channels),))
         self.channels = channels
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         if batch.images is None:
             return batch
 
@@ -4865,7 +4871,7 @@ class RemoveCBAsByOutOfImageFraction(Augmenter):
 
         self.fraction = fraction
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         for column in batch.columns:
             if column.name in ["keypoints", "bounding_boxes", "polygons",
                                "line_strings"]:
@@ -4935,7 +4941,7 @@ class ClipCBAsToImagePlanes(Augmenter):
         super(ClipCBAsToImagePlanes, self).__init__(
             name=name, deterministic=deterministic, random_state=random_state)
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         for column in batch.columns:
             if column.name in ["keypoints", "bounding_boxes", "polygons",
                                "line_strings"]:

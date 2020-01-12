@@ -50,7 +50,7 @@ class _InplaceDummyAugmenterImgsArray(iaa.meta.Augmenter):
             name=None, deterministic=False, random_state=None)
         self.addval = addval
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         batch.images += self.addval
         return batch
 
@@ -64,7 +64,7 @@ class _InplaceDummyAugmenterImgsList(iaa.meta.Augmenter):
             name=None, deterministic=False, random_state=None)
         self.addval = addval
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         assert len(batch.images) > 0
         for i in range(len(batch.images)):
             batch.images[i] += self.addval
@@ -80,7 +80,7 @@ class _InplaceDummyAugmenterSegMaps(iaa.meta.Augmenter):
             name=None, deterministic=False, random_state=None)
         self.addval = addval
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         assert len(batch.segmentation_maps) > 0
         for i in range(len(batch.segmentation_maps)):
             batch.segmentation_maps[i].arr += self.addval
@@ -97,7 +97,7 @@ class _InplaceDummyAugmenterKeypoints(iaa.meta.Augmenter):
         self.x = x
         self.y = y
 
-    def _augment_batch(self, batch, random_state, parents, hooks):
+    def _augment_batch_(self, batch, random_state, parents, hooks):
         assert len(batch.keypoints) > 0
         for i in range(len(batch.keypoints)):
             kpsoi = batch.keypoints[i]
