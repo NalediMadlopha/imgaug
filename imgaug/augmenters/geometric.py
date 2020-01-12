@@ -4975,9 +4975,9 @@ class WithPolarWarping(meta.Augmenter):
                 setattr(batch, column.attr_name, col_aug)
                 inv_data[column.name] = inv_data_col
 
-            batch = self.children.augment_batch(batch,
-                                                parents=parents + [self],
-                                                hooks=hooks)
+            batch = self.children.augment_batch_(batch,
+                                                 parents=parents + [self],
+                                                 hooks=hooks)
             for column in batch.columns:
                 func = getattr(self, "_invert_warp_%s_" % (column.name,))
                 col_unaug = func(column.value, inv_data[column.name])
@@ -5627,8 +5627,8 @@ class Jigsaw(meta.Augmenter):
                     width_multiple=samples.nb_cols[i],
                     height_multiple=samples.nb_rows[i])
                 row = batch.subselect_rows_by_indices([i])
-                row = padder.augment_batch(row, parents=parents + [self],
-                                           hooks=hooks)
+                row = padder.augment_batch_(row, parents=parents + [self],
+                                            hooks=hooks)
                 batch = batch.invert_subselect_rows_by_indices_([i], row)
 
         if batch.images is not None:

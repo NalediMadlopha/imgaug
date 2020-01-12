@@ -475,7 +475,7 @@ class Augmenter(object):
 
             for idx, batch in enumerate(batches):
                 batch_normalized, batch_orig_dt = _normalize_batch(idx, batch)
-                batch_normalized = self.augment_batch(
+                batch_normalized = self.augment_batch_(
                     batch_normalized, hooks=hooks)
                 batch_unnormalized = _unnormalize_batch(
                     batch_normalized, batch, batch_orig_dt)
@@ -511,14 +511,22 @@ class Augmenter(object):
                     del id_to_batch_orig[idx]
                     yield batch_unnormalized
 
-    def augment_batch(self, batch, parents=None, hooks=None):
+    # TODO add more tests
+    def augment_batch_(self, batch, parents=None, hooks=None):
         """
-        Augment a single batch.
+        Augment a single batch in-place.
 
         Parameters
         ----------
         batch : imgaug.augmentables.batches.Batch or imgaug.augmentables.batches.UnnormalizedBatch or imgaug.augmentables.batch.BatchInAugmentation
             A single batch to augment.
+
+            If :class:`imgaug.augmentables.batches.UnnormalizedBatch`
+            or :class:`imgaug.augmentables.batches.Batch`, then the ``*_aug``
+            attributes may be modified in-place, while the ``*_unaug``
+            attributes will not be modified.
+            If :class:`imgaug.augmentables.batches.BatchInAugmentation`,
+            then all attributes may be modified in-place.
 
         parents : None or list of imgaug.augmenters.Augmenter, optional
             Parent augmenters that have previously been called before the
@@ -769,7 +777,7 @@ class Augmenter(object):
                     "augment_images([image]), otherwise you will not get "
                     "the expected augmentations." % (images.shape,))
 
-        return self.augment_batch(
+        return self.augment_batch_(
             UnnormalizedBatch(images=images),
             parents=parents,
             hooks=hooks
@@ -848,7 +856,7 @@ class Augmenter(object):
             Corresponding augmented heatmap(s).
 
         """
-        return self.augment_batch(
+        return self.augment_batch_(
             UnnormalizedBatch(heatmaps=heatmaps), parents=parents, hooks=hooks
         ).heatmaps_aug
 
@@ -913,7 +921,7 @@ class Augmenter(object):
             Corresponding augmented segmentation map(s).
 
         """
-        return self.augment_batch(
+        return self.augment_batch_(
             UnnormalizedBatch(segmentation_maps=segmaps),
             parents=parents,
             hooks=hooks
@@ -1018,7 +1026,7 @@ class Augmenter(object):
             Augmented keypoints.
 
         """
-        return self.augment_batch(
+        return self.augment_batch_(
             UnnormalizedBatch(keypoints=keypoints_on_images),
             parents=parents,
             hooks=hooks
@@ -1127,7 +1135,7 @@ class Augmenter(object):
             Augmented bounding boxes.
 
         """
-        return self.augment_batch(
+        return self.augment_batch_(
             UnnormalizedBatch(bounding_boxes=bounding_boxes_on_images),
             parents=parents,
             hooks=hooks
@@ -1193,7 +1201,7 @@ class Augmenter(object):
             Augmented polygons.
 
         """
-        return self.augment_batch(
+        return self.augment_batch_(
             UnnormalizedBatch(polygons=polygons_on_images),
             parents=parents,
             hooks=hooks
@@ -1262,7 +1270,7 @@ class Augmenter(object):
             Augmented line strings.
 
         """
-        return self.augment_batch(
+        return self.augment_batch_(
             UnnormalizedBatch(line_strings=line_strings_on_images),
             parents=parents,
             hooks=hooks
@@ -1914,7 +1922,7 @@ class Augmenter(object):
             line_strings=kwargs.get("line_strings", None)
         )
 
-        batch_aug = self.augment_batch(batch, hooks=hooks)
+        batch_aug = self.augment_batch_(batch, hooks=hooks)
 
         # return either batch or tuple of augmentables, depending on what
         # was requested by user
@@ -3035,7 +3043,7 @@ class Sequential(Augmenter, list):
                 order = sm.xrange(len(self))
 
             for index in order:
-                batch = self[index].augment_batch(
+                batch = self[index].augment_batch_(
                     batch,
                     parents=parents + [self],
                     hooks=hooks
@@ -3302,7 +3310,7 @@ class SomeOf(Augmenter, list):
 
                 if len(active) > 0:
                     batch_sub = batch.subselect_rows_by_indices(active)
-                    batch_sub = self[augmenter_index].augment_batch(
+                    batch_sub = self[augmenter_index].augment_batch_(
                         batch_sub,
                         parents=parents + [self],
                         hooks=hooks
@@ -3513,7 +3521,7 @@ class Sometimes(Augmenter):
             for indices, augmenters in zip(indice_lists, augmenter_lists):
                 if augmenters is not None and len(augmenters) > 0:
                     batch_sub = batch.subselect_rows_by_indices(indices)
-                    batch_sub = augmenters.augment_batch(
+                    batch_sub = augmenters.augment_batch_(
                         batch_sub,
                         parents=parents + [self],
                         hooks=hooks
@@ -3655,7 +3663,7 @@ class WithChannels(Augmenter):
             # of columns leads to potential RNG misalignments.
             # We replace non-image data that was not supposed to be augmented
             # further below.
-            batch = self.children.augment_batch(
+            batch = self.children.augment_batch_(
                 batch, parents=parents + [self], hooks=hooks)
 
             # If the shapes changed we cannot insert the augmented channels

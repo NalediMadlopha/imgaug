@@ -4405,7 +4405,7 @@ class KeepSizeByResize(meta.Augmenter):
 
             samples = self._draw_samples(batch.nb_rows, random_state)
 
-            batch = self.children.augment_batch(
+            batch = self.children.augment_batch_(
                 batch, parents=parents + [self], hooks=hooks)
 
             if batch.images is not None:

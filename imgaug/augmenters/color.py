@@ -1023,7 +1023,7 @@ class WithColorspace(meta.Augmenter):
                     to_colorspaces=self.to_colorspace,
                     from_colorspaces=self.from_colorspace)
 
-            batch = self.children.augment_batch(
+            batch = self.children.augment_batch_(
                 batch,
                 parents=parents + [self],
                 hooks=hooks
@@ -1181,7 +1181,7 @@ class WithBrightnessChannels(meta.Augmenter):
 
                 batch.images = brightness_channels
 
-            batch = self.children.augment_batch(
+            batch = self.children.augment_batch_(
                 batch, parents=parents + [self], hooks=hooks)
 
             if batch.images is not None:
@@ -1562,7 +1562,7 @@ class WithHueAndSaturation(meta.Augmenter):
             images_hs, images_hsv = self._images_to_hsv_(batch.images)
             batch.images = images_hs
 
-            batch = self.children.augment_batch(
+            batch = self.children.augment_batch_(
                 batch, parents=parents + [self], hooks=hooks)
 
             batch.images = self._hs_to_images_(batch.images, images_hsv)

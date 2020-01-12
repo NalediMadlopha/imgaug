@@ -222,7 +222,7 @@ def _generate_branch_outputs(augmenter, batch, hooks, parents):
         outputs_fg = outputs_fg.deepcopy()
         with outputs_fg.propagation_hooks_ctx(augmenter, hooks, parents):
             if augmenter.foreground is not None:
-                outputs_fg = augmenter.foreground.augment_batch(
+                outputs_fg = augmenter.foreground.augment_batch_(
                     outputs_fg,
                     parents=parents_extended,
                     hooks=hooks
@@ -232,7 +232,7 @@ def _generate_branch_outputs(augmenter, batch, hooks, parents):
     if augmenter.background is not None:
         outputs_bg = outputs_bg.deepcopy()
         with outputs_bg.propagation_hooks_ctx(augmenter, hooks, parents):
-            outputs_bg = augmenter.background.augment_batch(
+            outputs_bg = augmenter.background.augment_batch_(
                 outputs_bg,
                 parents=parents_extended,
                 hooks=hooks
